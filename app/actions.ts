@@ -1,134 +1,204 @@
 "use server";
 
-import { encodedRedirect } from "@/utils/utils";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
-export const signUpAction = async (formData: FormData) => {
-  const email = formData.get("email")?.toString();
-  const password = formData.get("password")?.toString();
-  const supabase = await createClient();
-  const origin = (await headers()).get("origin");
-
-  if (!email || !password) {
-    return encodedRedirect(
-      "error",
-      "/sign-up",
-      "Email and password are required",
-    );
-  }
-
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: `${origin}/auth/callback`,
-    },
-  });
-
-  if (error) {
-    console.error(error.code + " " + error.message);
-    return encodedRedirect("error", "/sign-up", error.message);
-  } else {
-    return encodedRedirect(
-      "success",
-      "/sign-up",
-      "Thanks for signing up! Please check your email for a verification link.",
-    );
-  }
+export type ReceiptItem = {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  pricePerUnit: number;
+  discount: number;
 };
 
-export const signInAction = async (formData: FormData) => {
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-  const supabase = await createClient();
-
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    return encodedRedirect("error", "/sign-in", error.message);
-  }
-
-  return redirect("/protected");
+type Receipt = {
+  id: string;
+  storeName: string;
+  storeAddress: string;
+  date: string;
+  category: string;
+  totalAmount: number;
+  items: ReceiptItem[];
 };
 
-export const forgotPasswordAction = async (formData: FormData) => {
-  const email = formData.get("email")?.toString();
-  const supabase = await createClient();
-  const origin = (await headers()).get("origin");
-  const callbackUrl = formData.get("callbackUrl")?.toString();
+export async function getReceipts() {
+  try {
+    const supabase = await createClient();
+    const { data: receips } = await supabase.from("receipts").select("*");
 
-  if (!email) {
-    return encodedRedirect("error", "/forgot-password", "Email is required");
+    if (!receips) {
+      throw new Error("Failed to fetch receipts. Please try again later.");
+    }
+
+    return receips.map((receipt: any) => ({
+      id: receipt.id,
+      storeName: receipt.store_name,
+      storeAddress: receipt.store_address,
+      date: receipt.date,
+      category: receipt.category,
+      totalAmount: receipt.total_amount,
+    })) as Receipt[];
+  } catch (error: any) {
+    console.error("Error fetching receipts:", error);
+    throw new Error("Failed to fetch receipts. Please try again later.");
   }
+}
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?redirect_to=/protected/reset-password`,
-  });
+export async function getReceipt(id: string) {
+  try {
+    const supabase = await createClient();
+    const { data: receips } = await supabase
+      .from("receipts")
+      .select("*,receipt_items(*)")
+      .eq("id", id);
 
-  if (error) {
-    console.error(error.message);
-    return encodedRedirect(
-      "error",
-      "/forgot-password",
-      "Could not reset password",
-    );
+    if (!receips || receips.length === 0) {
+      throw new Error(`Receipt not found`);
+    }
+
+    const receipt = receips[0];
+
+    return {
+      id: receipt.id,
+      storeName: receipt.store_name,
+      storeAddress: receipt.store_address,
+      date: receipt.date,
+      category: receipt.category,
+      totalAmount: receipt.total_amount,
+      items: receipt.receipt_items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        pricePerUnit: item.price_per_unit,
+        discount: item.discount,
+      })),
+    };
+  } catch (error: any) {
+    console.error("Error fetching receipt:", error);
+    throw new Error("Failed to fetch receipt. Please try again later.");
   }
+}
 
-  if (callbackUrl) {
-    return redirect(callbackUrl);
+export async function createReceipt(formData: FormData) {
+  try {
+    const storeName = formData.get("storeName") as string;
+    const storeAddress = formData.get("storeAddress") as string;
+    const date = formData.get("date") as string;
+    const category = formData.get("category") as string;
+    const items = JSON.parse(formData.get("items") as string);
+
+    const totalAmount = items.reduce((total: number, item: any) => {
+      return (
+        total +
+        item.quantity * item.pricePerUnit -
+        item.quantity * item.discount
+      );
+    }, 0);
+
+    const supabase = await createClient();
+
+    const { data: receipts } = await supabase
+      .from("receipts")
+      .insert({
+        store_name: storeName,
+        store_address: storeAddress,
+        date,
+        category,
+        total_amount: totalAmount,
+      })
+      .select();
+
+    if (!receipts || receipts.length === 0) {
+      throw new Error("Failed to create receipt. Please try again later.");
+    }
+
+    const receipt = receipts[0];
+
+    for (const item of items) {
+      await supabase.from("items").insert({
+        receipt_id: receipt.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        price_per_unit: item.pricePerUnit,
+        discount: item.discount,
+      });
+    }
+
+    revalidatePath("/");
+    return { id: receipt.id };
+  } catch (error: any) {
+    console.error("Error creating receipt:", error);
+    throw new Error("Failed to create receipt. Please try again later.");
   }
+}
 
-  return encodedRedirect(
-    "success",
-    "/forgot-password",
-    "Check your email for a link to reset your password.",
-  );
-};
+export async function updateReceipt(formData: FormData) {
+  try {
+    const id = formData.get("id") as string;
+    const storeName = formData.get("storeName") as string;
+    const storeAddress = formData.get("storeAddress") as string;
+    const date = formData.get("date") as string;
+    const category = formData.get("category") as string;
+    const items = JSON.parse(formData.get("items") as string);
 
-export const resetPasswordAction = async (formData: FormData) => {
-  const supabase = await createClient();
+    const totalAmount = items.reduce((total: number, item: any) => {
+      return (
+        total +
+        item.quantity * item.pricePerUnit -
+        item.quantity * item.discount
+      );
+    }, 0);
 
-  const password = formData.get("password") as string;
-  const confirmPassword = formData.get("confirmPassword") as string;
+    const supabase = await createClient();
 
-  if (!password || !confirmPassword) {
-    encodedRedirect(
-      "error",
-      "/protected/reset-password",
-      "Password and confirm password are required",
-    );
+    // Update receipt
+    await supabase
+      .from("receipts")
+      .update({
+        store_name: storeName,
+        store_address: storeAddress,
+        date,
+        category,
+        total_amount: totalAmount,
+      })
+      .eq("id", id);
+
+    // Delete existing items
+    await supabase.from("items").delete().eq("receipt_id", id);
+
+    // Insert updated items
+    for (const item of items) {
+      await supabase.from("items").insert({
+        receipt_id: id,
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        price_per_unit: item.pricePerUnit,
+        discount: item.discount,
+      });
+    }
+
+    revalidatePath("/");
+    revalidatePath(`/receipts/${id}`);
+    return { id };
+  } catch (error: any) {
+    console.error("Error updating receipt:", error);
+    throw new Error("Failed to update receipt. Please try again later.");
   }
+}
 
-  if (password !== confirmPassword) {
-    encodedRedirect(
-      "error",
-      "/protected/reset-password",
-      "Passwords do not match",
-    );
+export async function deleteReceipt(formData: FormData) {
+  try {
+    const supabase = await createClient();
+    const id = formData.get("id") as string;
+    await supabase.from("items").delete().eq("receipt_id", id);
+
+    revalidatePath("/");
+  } catch (error: any) {
+    console.error("Error deleting receipt:", error);
+    throw new Error("Failed to delete receipt. Please try again later.");
   }
-
-  const { error } = await supabase.auth.updateUser({
-    password: password,
-  });
-
-  if (error) {
-    encodedRedirect(
-      "error",
-      "/protected/reset-password",
-      "Password update failed",
-    );
-  }
-
-  encodedRedirect("success", "/protected/reset-password", "Password updated");
-};
-
-export const signOutAction = async () => {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  return redirect("/sign-in");
-};
+}
