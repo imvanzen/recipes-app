@@ -167,6 +167,7 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="service">Service</SelectItem>
                 <SelectItem value="piece">Piece</SelectItem>
                 <SelectItem value="kg">Kg</SelectItem>
                 <SelectItem value="liter">Liter</SelectItem>

@@ -117,7 +117,7 @@ export async function createReceipt(formData: FormData) {
     const receipt = receipts[0];
 
     for (const item of items) {
-      await supabase.from("items").insert({
+      await supabase.from("receipt_items").insert({
         receipt_id: receipt.id,
         name: item.name,
         quantity: item.quantity,
@@ -160,7 +160,7 @@ export async function updateReceipt(formData: FormData) {
       .eq("id", id);
 
     // Delete existing items
-    await supabase.from("items").delete().eq("receipt_id", id);
+    await supabase.from("receipt_items").delete().eq("receipt_id", id);
 
     // Insert updated items
     for (const item of items) {
@@ -187,7 +187,8 @@ export async function deleteReceipt(formData: FormData) {
   try {
     const supabase = await createClient();
     const id = formData.get("id") as string;
-    await supabase.from("items").delete().eq("receipt_id", id);
+    await supabase.from("receipts").delete().eq("id", id);
+    await supabase.from("receipt_items").delete().eq("receipt_id", id);
 
     revalidatePath("/");
   } catch (error: any) {
