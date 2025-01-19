@@ -26,7 +26,9 @@ type Receipt = {
 export async function getReceipts() {
   try {
     const supabase = await createClient();
-    const { data: receips } = await supabase.from("receipts").select("*");
+    const { data: receips } = await supabase
+      .from("receipts")
+      .select("*,receipt_items(*)");
 
     if (!receips) {
       throw new Error("Failed to fetch receipts. Please try again later.");
@@ -38,7 +40,13 @@ export async function getReceipts() {
       storeAddress: receipt.store_address,
       date: receipt.date,
       category: receipt.category,
-      totalAmount: receipt.total_amount,
+      totalAmount: calculateTotal(
+        receipt.receipt_items.map((item: any) => ({
+          quantity: item.quantity,
+          pricePerUnit: item.price_per_unit,
+          discount: item.discount,
+        }))
+      ),
     })) as Receipt[];
   } catch (error: any) {
     console.error("Error fetching receipts:", error);
@@ -66,7 +74,7 @@ export async function getReceipt(id: string) {
       storeAddress: receipt.store_address,
       date: receipt.date,
       category: receipt.category,
-      totalAmount: receipt.total_amount,
+      totalAmount: calculateTotal(receipt.receipt_items),
       items: receipt.receipt_items.map((item: any) => ({
         id: item.id,
         name: item.name,
@@ -90,8 +98,6 @@ export async function createReceipt(formData: FormData) {
     const category = formData.get("category") as string;
     const items = JSON.parse(formData.get("items") as string);
 
-    const totalAmount = calculateTotal(items);
-
     const supabase = await createClient();
 
     const { data: receipts } = await supabase
@@ -101,7 +107,6 @@ export async function createReceipt(formData: FormData) {
         store_address: storeAddress,
         date,
         category,
-        total_amount: totalAmount,
       })
       .select();
 
@@ -151,7 +156,6 @@ export async function updateReceipt(formData: FormData) {
         store_address: storeAddress,
         date,
         category,
-        total_amount: totalAmount,
       })
       .eq("id", id);
 
