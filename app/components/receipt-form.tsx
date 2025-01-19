@@ -35,15 +35,22 @@ type ReceiptFormProps = {
   };
 };
 
+const initItem = {
+  name: "",
+  quantity: 1,
+  unit: "piece",
+  pricePerUnit: 0,
+  discount: 0,
+};
+
 export default function ReceiptForm({ receipt }: ReceiptFormProps) {
-  const [items, setItems] = useState<ReceiptItem[]>(receipt?.items || []);
+  const [items, setItems] = useState<ReceiptItem[]>(
+    receipt?.items || [initItem]
+  );
   const router = useRouter();
 
   const addItem = () => {
-    setItems([
-      ...items,
-      { name: "", quantity: 1, unit: "piece", pricePerUnit: 0, discount: 0 },
-    ]);
+    setItems([...items, initItem]);
   };
 
   const updateItem = (
@@ -62,8 +69,7 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
 
   const calculateTotal = () => {
     return items.reduce((total, item) => {
-      const itemTotal =
-        item.quantity * item.pricePerUnit - item.quantity * item.discount;
+      const itemTotal = item.quantity * item.pricePerUnit - item.discount;
       return total + itemTotal;
     }, 0);
   };
@@ -201,7 +207,11 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
 
       <div className="flex justify-between items-center">
         <div className="text-xl font-semibold">
-          Total: ${calculateTotal().toFixed(2)}
+          Total:{" "}
+          {Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "PLN",
+          }).format(calculateTotal())}
         </div>
         <div className="space-x-2">
           <Button type="submit">Save</Button>

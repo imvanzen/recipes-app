@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
+import { calculateTotal } from "@/utils/calculate-total";
 
 export type ReceiptItem = {
   id: string;
@@ -89,13 +90,7 @@ export async function createReceipt(formData: FormData) {
     const category = formData.get("category") as string;
     const items = JSON.parse(formData.get("items") as string);
 
-    const totalAmount = items.reduce((total: number, item: any) => {
-      return (
-        total +
-        item.quantity * item.pricePerUnit -
-        item.quantity * item.discount
-      );
-    }, 0);
+    const totalAmount = calculateTotal(items);
 
     const supabase = await createClient();
 
@@ -144,13 +139,7 @@ export async function updateReceipt(formData: FormData) {
     const category = formData.get("category") as string;
     const items = JSON.parse(formData.get("items") as string);
 
-    const totalAmount = items.reduce((total: number, item: any) => {
-      return (
-        total +
-        item.quantity * item.pricePerUnit -
-        item.quantity * item.discount
-      );
-    }, 0);
+    const totalAmount = calculateTotal(items);
 
     const supabase = await createClient();
 
@@ -171,7 +160,7 @@ export async function updateReceipt(formData: FormData) {
 
     // Insert updated items
     for (const item of items) {
-      await supabase.from("items").insert({
+      await supabase.from("receipt_items").insert({
         receipt_id: id,
         name: item.name,
         quantity: item.quantity,

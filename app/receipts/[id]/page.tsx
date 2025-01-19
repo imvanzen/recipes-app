@@ -7,8 +7,11 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { calculateTotal } from "@/utils/calculate-total";
+import { formatMoney } from "@/utils/format-money";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +31,6 @@ export default async function ReceiptPage({ params }: PageProps) {
   if (!receipt) {
     notFound();
   }
-
-  console.log(receipt);
 
   return (
     <div className="container mx-auto py-10 w-full">
@@ -56,7 +57,7 @@ export default async function ReceiptPage({ params }: PageProps) {
 
         <h2 className="text-xl font-semibold mb-4">Items</h2>
         <Table>
-          <TableHead>
+          <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Quantity</TableHead>
@@ -65,22 +66,16 @@ export default async function ReceiptPage({ params }: PageProps) {
               <TableHead>Discount</TableHead>
               <TableHead>Total</TableHead>
             </TableRow>
-          </TableHead>
+          </TableHeader>
           <TableBody>
             {receipt.items.map((item: any) => (
               <TableRow key={item.id}>
                 <TableCell>{item.name}</TableCell>
                 <TableCell>{item.quantity}</TableCell>
                 <TableCell>{item.unit}</TableCell>
-                <TableCell>${item.pricePerUnit.toFixed(2)}</TableCell>
-                <TableCell>${item.discount.toFixed(2)}</TableCell>
-                <TableCell>
-                  $
-                  {(
-                    item.quantity * item.pricePerUnit -
-                    item.quantity * item.discount
-                  ).toFixed(2)}
-                </TableCell>
+                <TableCell>{formatMoney(item.pricePerUnit)}</TableCell>
+                <TableCell>{formatMoney(item.discount)}</TableCell>
+                <TableCell>{formatMoney(calculateTotal([item]))}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -88,7 +83,7 @@ export default async function ReceiptPage({ params }: PageProps) {
 
         <div className="flex justify-between items-center space-y-2">
           <div className="text-xl font-semibold">
-            Total: ${receipt.totalAmount.toFixed(2)}
+            Total: {formatMoney(calculateTotal(receipt.items))}
           </div>
           <div className="flex space-x-2">
             <Link href={`/receipts/${receipt.id}/edit`}>
