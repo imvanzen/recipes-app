@@ -44,6 +44,7 @@ const initItem = {
 };
 
 export default function ReceiptForm({ receipt }: ReceiptFormProps) {
+  const [isLoading, setIsLoading] = useState(false);
   const [items, setItems] = useState<ReceiptItem[]>(
     receipt?.items || [initItem]
   );
@@ -58,13 +59,16 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
     field: keyof ReceiptItem,
     value: string | number
   ) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setItems(newItems);
+    setItems((prevItems) =>
+      prevItems.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      )
+    );
   };
 
   const removeItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+    document.getElementById(`item-${index}-name`)?.focus();
   };
 
   const calculateTotal = () => {
@@ -78,6 +82,7 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     formData.append("items", JSON.stringify(items));
+    setIsLoading(true);
 
     if (receipt) {
       await updateReceipt(formData);
@@ -145,6 +150,7 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
         {items.map((item, index) => (
           <div key={item.id || index} className="grid grid-cols-6 gap-2 mb-2">
             <Input
+              autoFocus
               placeholder="Item name"
               value={item.name}
               onChange={(e) => updateItem(index, "name", e.target.value)}
@@ -215,7 +221,9 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
           }).format(calculateTotal())}
         </div>
         <div className="space-x-2">
-          <Button type="submit">Save</Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Loading" : "Save"}
+          </Button>
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancel
           </Button>
