@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,11 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusIcon, TrashIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { createReceipt, updateReceipt } from "../actions";
 import { useRouter } from "next/navigation";
+import ReceiptFormItemRow from "./receipt-form-item-row"; // <--- import the row component
 
-type ReceiptItem = {
+export type ReceiptItem = {
   id?: string;
   name: string;
   quantity: number;
@@ -50,33 +51,32 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
   );
   const router = useRouter();
 
-  const addItem = () => {
-    setItems([...items, initItem]);
-  };
+  const addItem = useCallback(() => {
+    setItems((prevItems) => [...prevItems, initItem]);
+  }, []);
 
-  const updateItem = (
-    index: number,
-    field: keyof ReceiptItem,
-    value: string | number
-  ) => {
-    setItems((prevItems) =>
-      prevItems.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      )
-    );
-  };
+  // Using useCallback prevents re-creating the function on every render.
+  const updateItem = useCallback(
+    (index: number, field: keyof ReceiptItem, value: string | number) => {
+      setItems((prevItems) =>
+        prevItems.map((item, i) =>
+          i === index ? { ...item, [field]: value } : item
+        )
+      );
+    },
+    []
+  );
 
-  const removeItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
-    document.getElementById(`item-${index}-name`)?.focus();
-  };
+  const removeItem = useCallback((index: number) => {
+    setItems((prevItems) => prevItems.filter((_, i) => i !== index));
+  }, []);
 
-  const calculateTotal = () => {
+  const calculateTotal = useCallback(() => {
     return items.reduce((total, item) => {
       const itemTotal = item.quantity * item.pricePerUnit - item.discount;
       return total + itemTotal;
     }, 0);
-  };
+  }, [items]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -84,12 +84,16 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
     formData.append("items", JSON.stringify(items));
     setIsLoading(true);
 
-    if (receipt) {
-      await updateReceipt(formData);
-      router.push(`/receipts/${receipt.id}`);
-    } else {
-      const newReceipt = await createReceipt(formData);
-      router.push(`/receipts/${newReceipt.id}`);
+    try {
+      if (receipt) {
+        await updateReceipt(formData);
+        router.push(`/receipts/${receipt.id}`);
+      } else {
+        const newReceipt = await createReceipt(formData);
+        router.push(`/receipts/${newReceipt.id}`);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -149,64 +153,13 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
       <div>
         <h3 className="text-lg font-semibold mb-2">Items</h3>
         {items.map((item, index) => (
-          <div key={item.id || index} className="grid grid-cols-6 gap-2 mb-2">
-            <Input
-              autoFocus
-              placeholder="Item name"
-              value={item.name}
-              onChange={(e) => updateItem(index, "name", e.target.value)}
-              required
-            />
-            <Input
-              type="number"
-              placeholder="Quantity"
-              value={item.quantity}
-              onChange={(e) =>
-                updateItem(index, "quantity", parseFloat(e.target.value))
-              }
-              required
-            />
-            <Select
-              value={item.unit}
-              onValueChange={(value: any) => updateItem(index, "unit", value)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="service">Service</SelectItem>
-                <SelectItem value="piece">Piece</SelectItem>
-                <SelectItem value="kg">Kg</SelectItem>
-                <SelectItem value="liter">Liter</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              step="0.01"
-              placeholder="Price per unit"
-              value={item.pricePerUnit}
-              onChange={(e) =>
-                updateItem(index, "pricePerUnit", parseFloat(e.target.value))
-              }
-              required
-            />
-            <Input
-              type="number"
-              step="0.01"
-              placeholder="Discount"
-              value={item.discount}
-              onChange={(e) =>
-                updateItem(index, "discount", parseFloat(e.target.value))
-              }
-            />
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => removeItem(index)}
-            >
-              <TrashIcon className="h-4 w-4" />
-            </Button>
-          </div>
+          <ReceiptFormItemRow
+            key={item.id || index}
+            item={item}
+            index={index}
+            removeItem={removeItem}
+            updateItem={updateItem}
+          />
         ))}
         <Button type="button" onClick={addItem} className="mt-2">
           <PlusIcon className="mr-2 h-4 w-4" /> Add Item
