@@ -100,6 +100,7 @@ export default function ReceiptForm({ receipt }: ReceiptFormProps) {
         <div>
           <Label htmlFor="storeName">Store Name</Label>
           <Input
+            autoFocus
             id="storeName"
             name="storeName"
             defaultValue={receipt?.storeName}

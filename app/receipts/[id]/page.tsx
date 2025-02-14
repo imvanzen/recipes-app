@@ -33,7 +33,7 @@ export default async function ReceiptPage({ params }: PageProps) {
   }
 
   return (
-    <div className="container mx-auto py-10 w-full">
+    <div className="container mx-auto w-full">
       <h1 className="text-3xl font-bold mb-6">Receipt Details</h1>
       <div className=" shadow-md rounded-lg p-6">
         <div className="grid grid-cols-2 gap-4 mb-6">
